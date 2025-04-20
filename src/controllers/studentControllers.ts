@@ -58,7 +58,7 @@ export const bookAppoinment = async (req: Request, res: Response) => {
 
             newAppoinment = Appointment[0]
         })
-        res.status(200).json({
+        res.status(201).json({
             status: "Success",
             message: "Appointment Booked Successfully",
             newAppoinment

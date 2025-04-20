@@ -7,10 +7,10 @@ import studentRouter from './routes/studentRouter'
 
 import 'dotenv/config'
 
-const app = express()
+export const app = express()
 const PORT = process.env.PORT || 3000
 
-connectToDB()
+// connectToDB()
 
 app.use(express.json())
 app.use(cors({
