@@ -1,19 +1,13 @@
-import mongoose from 'mongoose';
-import { MongoMemoryReplSet } from 'mongodb-memory-server';
+import { PrismaClient } from '@prisma/client';
+import { cleanDb } from '../db/prisma/test-utils';
 
-let mongoReplSet: MongoMemoryReplSet;
+const prisma = new PrismaClient();
 
 beforeAll(async () => {
-  // Create a MongoDB replica set with 1 primary and 1 secondary
-  mongoReplSet = await MongoMemoryReplSet.create({
-    replSet: { count: 2, storageEngine: 'wiredTiger' }
-  });
-  
-  const mongoUri = mongoReplSet.getUri();
-  await mongoose.connect(mongoUri);
+  await cleanDb();
 });
 
 afterAll(async () => {
-  await mongoose.disconnect();
-  await mongoReplSet?.stop();
+  await prisma.$disconnect();
+  await cleanDb()
 });

@@ -1,27 +1,25 @@
 import { Request, Response } from "express";
-import { availability } from "../db/models/availbilityModel";
-import { appointment } from "../db/models/appoinmentModel";
-import mongoose from "mongoose";
+import { prisma } from "../app";
 
-export const bookAppoinment = async (req: Request, res: Response) => {
-    const session = await mongoose.startSession();
-
+export const bookAppointment = async (req: Request, res: Response) => {
     try {
         const { professorId, date, time } = req.body
         const studentId = req.user?.id
         if (!studentId || !professorId || !date || !time) {
-            res.status(401).json({
+            res.status(400).json({
                 status: "Failed",
                 message: "Missing required Fields"
             })
             return
         }
 
-        const isBusy = await availability.findOne({
-            professor: professorId,
-            date,
-            time,
-            isBooked: true
+        const isBusy = await prisma.availability.findFirst({
+            where: {
+                professorId,
+                date,
+                time,
+                isBooked: true
+            }
         })
 
         if (isBusy) {
@@ -33,35 +31,40 @@ export const bookAppoinment = async (req: Request, res: Response) => {
         }
 
 
-        let newAppoinment;
-        await session.withTransaction(async () => {
-            const updatedAvailability = await availability.findOneAndUpdate({
-                professor: professorId,
-                date,
-                time,
-            }, {
-                isBooked: true
-            }, {
-                session, new: true
+        let newAppointment;
+        await prisma.$transaction(async (tx: any) => {
+            const updatedAvailability = await tx.availability.update({
+                where: {
+                    professorId_date_time: {
+                        professorId,
+                        date,
+                        time,
+                    }
+                },
+                data: {
+                    isBooked: true
+                }
             })
 
             if (!updatedAvailability) {
                 throw new Error("No availability Found")
             }
 
-            const Appointment = await appointment.create([{
-                student: studentId,
-                professor: professorId,
-                availability: updatedAvailability?._id,
+            const Appointment = await tx.appointment.create({
+                data: {
+                    studentId,
+                    professorId,
+                    availabilityId: updatedAvailability?.id,
+                }
 
-            }], { session })
+            })
 
-            newAppoinment = Appointment[0]
+            newAppointment = Appointment
         })
         res.status(201).json({
             status: "Success",
             message: "Appointment Booked Successfully",
-            newAppoinment
+            appointment: newAppointment
         })
 
     } catch (error) {
@@ -71,8 +74,6 @@ export const bookAppoinment = async (req: Request, res: Response) => {
             message: "Server error while booking appointment"
         });
         return
-    } finally {
-        session.endSession();
     }
 }
 
@@ -88,8 +89,10 @@ export const getAppointments = async (req: Request, res: Response) => {
             })
             return
         }
-        const appointments = await appointment.find({
-            student: studentId
+        const appointments = await prisma.appointment.findMany({
+            where: {
+                studentId
+            }
         })
 
         if (!appointments || appointments.length == 0) {

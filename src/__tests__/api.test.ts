@@ -147,7 +147,7 @@ describe('College Appointment System E2E Flow', () => {
 
         expect(response.status).toBe(200)
 
-        const activeAppointments = response.body.appointments.filter((appt:any) => appt.status !== 'CANCELLED');
+        const activeAppointments = response.body.appointments.filter((appt: any) => appt.status !== 'CANCELLED');
         expect(activeAppointments.length).toBe(0)
     })
 

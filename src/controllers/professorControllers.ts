@@ -1,7 +1,5 @@
 import { Request, Response } from "express";
-import { availability } from "../db/models/availbilityModel";
-import mongoose from "mongoose";
-import { appointment } from "../db/models/appoinmentModel";
+import { prisma } from "../app";
 
 export const createAvailability = async (req: Request, res: Response) => {
     try {
@@ -15,10 +13,12 @@ export const createAvailability = async (req: Request, res: Response) => {
             return
         }
 
-        const availabilityExists = await availability.findOne({
-            professor: professorId,
-            date,
-            time
+        const availabilityExists = await prisma.availability.findFirst({
+            where: {
+                professorId,
+                date,
+                time
+            }
         });
 
         if (availabilityExists) {
@@ -29,10 +29,12 @@ export const createAvailability = async (req: Request, res: Response) => {
             return
         }
 
-        const newAvailability = await availability.create({
-            professor: professorId,
-            date,
-            time
+        const newAvailability = await prisma.availability.create({
+            data: {
+                professorId: professorId,
+                date,
+                time
+            }
         });
 
         res.status(201).json({
@@ -65,9 +67,11 @@ export const getAvailability = async (req: Request, res: Response) => {
             return
         }
 
-        const availabilities = await availability.find({
-            professor: professorId,
-            isBooked: false
+        const availabilities = await prisma.availability.findMany({
+            where: {
+                professorId,
+                isBooked: false
+            }
         });
 
         res.status(200).json({
@@ -87,7 +91,7 @@ export const getAvailability = async (req: Request, res: Response) => {
 
 
 export const cancelAppointment = async (req: Request, res: Response) => {
-    const session = await mongoose.startSession()
+
     try {
 
         const { studentId, date, time } = req.body
@@ -100,42 +104,54 @@ export const cancelAppointment = async (req: Request, res: Response) => {
             return
         }
 
-        await session.withTransaction(async () => {
-            const updatedAvailability = await availability.findOneAndUpdate({
-                professor: professorId,
-                date,
-                time
-            }, {
-                isBooked: false
-            }, { session, new: true })
+        await prisma.$transaction(async (tx: any) => {
+            const updatedAvailability = await tx.availability.update({
+                where: {
+                    professorId_date_time: {
+                        professorId,
+                        date,
+                        time
+                    }
+                },
+                data: {
+                    isBooked: false
+                }
+            })
+
+
             if (!updatedAvailability) {
                 throw new Error("Failed to Update Availability")
             }
-            const updatedAppointment = await appointment.findOneAndUpdate({
-                professor: professorId,
-                student: studentId,
-                availability: updatedAvailability._id
-            }, {
-                status: "CANCELLED"
-            }, { session, new: true })
+
+            const updatedAppointment = await tx.appointment.update({
+                where: {
+                    professorId,
+                    studentId,
+                    availabilityId: updatedAvailability.id
+                },
+                data: {
+                    status: "CANCELLED"
+                }
+
+            })
             if (!updatedAppointment) {
                 throw new Error("Appointment not Found")
             }
-
         })
+
+
 
         res.status(200).json({
             status: "Success",
             message: "Appointment Cancelled Successfully",
         })
-    } catch (error) {
+    }
+    catch (error) {
         console.error("Error Cancelling appointment:", error);
         res.status(500).json({
             status: "Failed",
             message: "Server error while cancelling appointment"
         });
         return
-    } finally {
-        session.endSession()
     }
 }
